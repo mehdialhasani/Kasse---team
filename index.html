@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="de"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Kasse</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Kasse">
+<meta name="theme-color" content="#F3EEE7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17120F" media="(prefers-color-scheme: dark)">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<style>
+/* Layout: three pages (Abrechnung, Trinkgeld, Verlauf) in one phone column, switched by a floating glass tab bar at the bottom */
+:root{
+  --bg:#F3EEE7; --paper:#FBF8F3; --ink:#2B211B; --muted:#7A6A5D; --line:#E3D9CC;
+  --accent:#8A5A3B; --accent-ink:#FFFFFF; --accent-soft:#EEDFD0;
+  --good:#5B7A3E; --warn:#9A6200; --warn-soft:#FBEFD6; --bad:#A33A2A; --bad-soft:#F7E1DC;
+  --glass:rgba(251,248,243,.7); --glass-line:rgba(255,255,255,.7); --shadow:rgba(60,40,25,.16);
+  --f-body:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --f-display:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --f-num:"Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#17120F; --paper:#211A16; --ink:#EFE7DF; --muted:#AD9E91; --line:#3A2F28;
+  --accent:#D3A27C; --accent-ink:#1A120D; --accent-soft:#3A2A1F;
+  --good:#A9C88A; --warn:#E5B35A; --warn-soft:#3A2E17; --bad:#F08C7A; --bad-soft:#3D221D;
+  --glass:rgba(40,32,27,.62); --glass-line:rgba(255,255,255,.08); --shadow:rgba(0,0,0,.45); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17120F; --paper:#211A16; --ink:#EFE7DF; --muted:#AD9E91; --line:#3A2F28;
+  --accent:#D3A27C; --accent-ink:#1A120D; --accent-soft:#3A2A1F;
+  --good:#A9C88A; --warn:#E5B35A; --warn-soft:#3A2E17; --bad:#F08C7A; --bad-soft:#3D221D;
+  --glass:rgba(40,32,27,.62); --glass-line:rgba(255,255,255,.08); --shadow:rgba(0,0,0,.45); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:620px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px calc(110px + env(safe-area-inset-bottom,0px))}
+.page{display:flex;flex-direction:column;gap:16px}
+@media (prefers-reduced-motion:no-preference){.page:not([hidden]){animation:fade .22s ease}@keyframes fade{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font:700 32px/1.05 var(--f-display);margin:0;letter-spacing:-.02em}
+h2{font:600 17px/1.25 var(--f-display);margin:0}
+.sub{color:var(--muted);font-size:14px;margin:3px 0 0}
+.num,.amt,input.money,input.cnt{font-variant-numeric:tabular-nums}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;scroll-margin-top:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:5px;flex:1 1 140px;min-width:0;scroll-margin-top:80px}
+.lbl,.field label{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.hint{font-size:14px;color:var(--muted);margin:0}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 11px;width:100%;min-width:0}
+input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input.money{text-align:right}
+.eur{position:relative}.eur input{padding-right:28px}
+.eur::after{content:"€";position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+button{font:600 15px var(--f-body);border-radius:11px;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:10px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.ghost{background:var(--paper)}
+button.small{padding:6px 14px;font-size:15px}
+button.primary,button.ghost,button.small,.saveBtn{min-height:44px}
+button.primary:not(.small),.saveBtn{min-height:50px}
+button.danger{color:var(--bad)}
+
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sum div{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.sum span:first-child{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.sum span:last-child{font-weight:600;font-size:17px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.takebox{display:flex;flex-direction:column;gap:1px;padding:10px 14px;border-radius:12px;background:var(--accent-soft);border:1.5px solid var(--accent)}
+.takebox .lbl{color:var(--accent)}
+.takeamt{font:700 25px/1.15 var(--f-display);font-variant-numeric:tabular-nums;color:var(--accent);letter-spacing:-.01em}
+.takesub{font-size:13px;color:var(--ink)}
+.takebox.empty{background:var(--bg);border-color:var(--line)}.takebox.empty .lbl,.takebox.empty .takeamt{color:var(--muted)}
+.sockel{display:flex;align-items:center;gap:10px}.sockel .eur{width:120px}.sockel input{padding:7px 28px 7px 9px;font-size:15px}
+.st-ok{color:var(--good)}.st-warn{color:var(--warn)}.st-bad{color:var(--bad)}
+
+.denoms{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}
+@media (max-width:540px){.denoms{grid-template-columns:1fr}}
+.groupT{grid-column:1/-1;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.dn{display:grid;grid-template-columns:58px 1fr 84px;align-items:center;gap:8px}
+.chip{font-weight:600;font-size:14px;text-align:center;padding:6px 0;border-radius:8px;background:var(--accent-soft)}
+.chip.coin{border-radius:999px;background:transparent;border:1.5px solid var(--line)}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.stepper button{border:0;border-radius:0;background:transparent;padding:8px 12px;font-size:18px;line-height:1;color:var(--muted)}
+.stepper input{border:0;border-radius:0;background:transparent;text-align:center;padding:8px 2px}
+.dn .amt{text-align:right;color:var(--muted);font-size:14px}
+.dn.has .amt{color:var(--ink)}
+.total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px dashed var(--line);padding-top:10px;gap:10px}
+.total .amt{font-size:20px;font-weight:600}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:2px}
+.seg button{border:0;background:transparent;font-weight:500;padding:6px 12px;border-radius:8px;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--paper);box-shadow:0 1px 3px var(--shadow)}
+
+.lines{display:flex;flex-direction:column;gap:0}
+.line,.tline{display:grid;grid-template-columns:minmax(0,1fr) 52px 74px 74px 24px;gap:6px;align-items:center}
+.line{padding:10px 0;border-bottom:1px solid var(--line)}.line:first-child{border-top:1px solid var(--line)}
+.line .share{text-align:right;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums}
+.line input{padding:10px 8px;font-size:16px}
+.tline{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.tline.foot{text-transform:none;letter-spacing:0;font-size:16px;font-weight:700;color:var(--ink);border-top:1px dashed var(--line);padding-top:10px}
+.tline.foot.per{color:var(--muted);border-top:0;padding-top:2px;font-size:14px;font-weight:400}
+.tline>span:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}
+.tline .ec,.line .ec{color:var(--accent)}
+.x{padding:8px 0;color:var(--muted);background:transparent;border-color:transparent}
+.quick{display:flex;flex-wrap:wrap;gap:6px}
+.quick button{font-weight:500;border-radius:999px;padding:5px 12px;font-size:14px}
+
+.qs{display:flex;flex-direction:column;gap:8px}
+.q{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--warn-soft);font-size:15px}
+.q.bad{background:var(--bad-soft)}
+.q b{flex:none;font-size:12px;padding:1px 7px;border-radius:999px;border:1.5px solid var(--warn);color:var(--warn)}
+.q.bad b{border-color:var(--bad);color:var(--bad)}
+.q a{color:inherit;font-weight:600}
+.ok{padding:10px 12px;border-radius:12px;background:var(--accent-soft);font-size:15px}
+
+.receipt{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:22px 16px 18px;font:15px/1.5 var(--f-body);font-variant-numeric:tabular-nums;
+  -webkit-mask:radial-gradient(circle 6px at 50% 0,#0000 98%,#000) 0 0/16px 100% repeat-x;mask:radial-gradient(circle 6px at 50% 0,#0000 98%,#000) 0 0/16px 100% repeat-x}
+.receipt .t{font-weight:700;text-align:center;letter-spacing:.06em;padding:2px 0}
+.receipt .r{display:flex;justify-content:space-between;gap:10px;padding:5px 0}
+.receipt .r span:first-child{min-width:0;overflow-wrap:anywhere}
+.receipt .r.big{font-weight:700}
+.receipt hr{border:0;border-top:1px dashed var(--line);margin:12px 0}
+.receipt .neg{color:var(--bad)}.receipt .pos{color:var(--warn)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.actions>button{flex:1 1 auto}
+.toast{font-size:14px;color:var(--accent);min-height:1.2em}
+.fallback{width:100%;min-height:180px;font:13px var(--f-num);background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px}
+
+.hist{display:flex;flex-direction:column;gap:8px}
+.hi{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.hi>button.head{width:100%;border:0;border-radius:0;background:transparent;display:grid;grid-template-columns:1fr auto;gap:4px 10px;text-align:left;padding:12px 14px;font-weight:400}
+.hi .d{font-weight:600}
+.hi .m{grid-column:1/-1;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.hi .chev{color:var(--muted);transition:transform .2s}
+.hi.open .chev{transform:rotate(90deg)}
+.hi .body{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
+.banner{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 12px;border-radius:12px;border:1.5px dashed var(--accent);font-size:15px}
+.editing{font-size:14px;padding:8px 12px;border-radius:10px;background:var(--accent-soft)}
+/* Monatsübersicht Trinkgeld im Verlauf */
+.mhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.mhead select{width:auto;flex:0 1 auto;padding:7px 10px;font-size:15px}
+.mrow{display:grid;grid-template-columns:minmax(0,1fr) 56px 78px 78px;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.mrow>span:nth-child(n+2){text-align:right}
+.mrow.th{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-top:0}
+.mrow.ft{font-weight:700;border-bottom:0}
+.mrow .ec{color:var(--accent)}
+/* Umschläge: pro Person aufklappbar, Scheine und Münzen aus der gezählten Trinkgeldkasse, abhaken wenn eingepackt */
+.envhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.envhead span{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.envs{display:flex;flex-direction:column;gap:8px}
+.env{background:var(--bg);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.env .eh{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center}
+.env button.ck{width:44px;height:52px;padding:0;border:0;border-radius:0;background:transparent;display:grid;place-items:center}
+.env .ck i{width:24px;height:24px;border-radius:999px;border:1.5px solid var(--muted);display:grid;place-items:center;font:700 14px/1 var(--f-body);font-style:normal;color:transparent}
+.env button.eo{border:0;border-radius:0;background:transparent;display:grid;grid-template-columns:minmax(0,1fr) auto 14px;gap:10px;align-items:center;text-align:left;font-weight:400;padding:10px 12px 10px 0;min-height:52px}
+.env .who{display:flex;flex-direction:column;min-width:0}.env .who b{font-weight:600;overflow-wrap:anywhere}.env .who small{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.env .tot{font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
+.env .chev{color:var(--muted);transition:transform .2s}.env.open .chev{transform:rotate(90deg)}
+.env .ed{padding:2px 12px 12px;display:flex;flex-direction:column;gap:6px}
+.pl{display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:center;font-variant-numeric:tabular-nums}
+.pl .n{font-weight:600}.pl .a{color:var(--muted);font-size:14px}
+.env.done{background:var(--paper)}
+.env.done .ck i{background:var(--good);border-color:var(--good);color:var(--paper)}
+.env.done .who b,.env.done .tot{text-decoration:line-through;color:var(--muted)}
+.envx{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:10px}
+
+.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:20;display:flex;gap:2px;padding:5px;border-radius:999px;
+  background:var(--glass);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);border:1px solid var(--glass-line);box-shadow:0 10px 34px var(--shadow)}
+.tab{display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 18px 6px;border-radius:999px;border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:600;min-width:86px;transition:background .2s,color .2s}
+.tab svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tab[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+@media (max-width:360px){.tab{min-width:0;padding-inline:12px}}
+/* ---------- Glasleiste unten wie im Brühbuch/Atlas v139 (fester Hintergrund, kein Filter) ---------- */
+:root{--lgx-solid:rgba(250,247,243,.92);--lgx-hl:rgba(255,255,255,.95);--lgx-edge:rgba(60,40,20,.08);--lgx-thumb-sh:inset 0 1px 0 #fff,inset 0 -1px 1px rgba(255,255,255,.5),0 0 0 .5px rgba(60,40,20,.08),0 3px 10px -2px rgba(60,40,20,.28)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--lgx-solid:rgba(34,31,28,.92);--lgx-hl:rgba(255,255,255,.13);--lgx-edge:rgba(255,255,255,.08);--lgx-thumb-sh:inset 0 1px 0 rgba(255,255,255,.25),0 0 0 .5px rgba(255,255,255,.08),0 3px 10px -2px rgba(0,0,0,.5)}}
+:root[data-theme=dark]{--lgx-solid:rgba(34,31,28,.92);--lgx-hl:rgba(255,255,255,.13);--lgx-edge:rgba(255,255,255,.08);--lgx-thumb-sh:inset 0 1px 0 rgba(255,255,255,.25),0 0 0 .5px rgba(255,255,255,.08),0 3px 10px -2px rgba(0,0,0,.5)}
+.lgx{position:fixed;left:50%;right:auto;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);width:calc(100% - 32px);max-width:380px;z-index:40;display:flex;gap:2px;padding:4px;border:0;border-radius:999px;isolation:isolate;overflow:visible;
+ background:var(--lgx-solid);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 1px 0 var(--lgx-hl),0 0 0 .5px var(--lgx-edge),0 16px 40px -18px rgba(40,25,10,.45)}
+.lgx .in{display:flex;gap:2px;flex:1;min-width:0}
+.lgx button{position:relative;z-index:2;flex:1;max-width:none;min-width:0;min-height:52px;padding:4px 0;border:0;border-radius:999px;background:none!important;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;line-height:1.2;color:var(--ink2,var(--muted));transition:color .25s,transform .35s cubic-bezier(.3,1.6,.5,1);touch-action:none}
+.lgx button svg{width:24px;height:24px;margin:0}
+.lgx button[aria-selected="true"]{color:var(--accent)}
+.lgx button.lgx-near{transform:scale(1.06)}
+.lgx-th{position:absolute;z-index:1;left:0;top:0;border-radius:999px;pointer-events:none;will-change:transform;box-shadow:var(--lgx-thumb-sh);transform-origin:50% 50%}
+.lgx-th::before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(120% 90% at var(--hx,30%) 0%,rgba(255,255,255,.95),rgba(255,255,255,0) 55%);opacity:var(--ho,.55);mix-blend-mode:soft-light}
+.lgx-th::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,var(--ro,0)),0 10px 26px -8px rgba(40,25,10,var(--so,0))}
+.lgx::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:3;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.55) 48%,transparent 60%) no-repeat;background-size:250% 100%;background-position:var(--sx,150%) 0;mix-blend-mode:soft-light;opacity:.9}
+@media (prefers-color-scheme:dark){.lgx::after{opacity:.35}.lgx-th::before{opacity:calc(var(--ho,.55)*.5)}}
+@media (prefers-reduced-motion:reduce){.lgx::after{display:none}}
+</style>
+
+</head><body>
+<div class="wrap">
+
+<section class="page" id="p-abrechnung">
+  <div class="top">
+    <div><h1>Abrechnung</h1><p class="sub" id="dateLabel"></p></div>
+    <div class="row" style="flex:0 0 auto;align-items:flex-end">
+      <div class="field" style="flex:0 0 150px"><label for="date">Datum</label><input type="date" id="date"></div>
+      <button class="small ghost" id="newDay" style="margin-bottom:4px">Neuer Tag</button>
+    </div>
+  </div>
+  <div class="banner" id="exBanner" hidden><span>Das sind <b>Beispielzahlen</b>, damit du siehst, wie es aussieht.</span><button class="primary small" id="exClear">Leeren und loslegen</button></div>
+  <div class="editing" id="editing" hidden></div>
+
+  <div class="sum">
+    <div><span>Gezählt</span><span id="sTill">0,00 €</span></div>
+    <div><span>Abschöpfen</span><span id="sTake">–</span></div>
+    <div><span>Differenz</span><span id="sDiff">–</span></div>
+  </div>
+
+  <div class="card" id="sec-kasse">
+    <h2>Bargeld in der Kasse</h2>
+    <p class="hint" style="margin-top:-8px">Zählen, nachdem das EC-Trinkgeld rausgenommen ist.</p>
+    <div class="denoms" id="tillGrid"></div>
+    <div class="total"><span class="lbl">Gezählt</span><span class="amt" id="tillTotal">0,00 €</span></div>
+  </div>
+
+  <div class="card" id="sec-system">
+    <h2>Aus dem Kassensystem</h2>
+    <div class="takebox" id="takeBox">
+      <span class="lbl">1 · Abschöpfung für den Tresor</span>
+      <span class="takeamt" id="takeAmt">–</span>
+      <span class="takesub" id="takeHint">Erst zählen, dann steht hier der Betrag.</span>
+    </div>
+    <div class="field"><label for="cashSales">2 · Soll laut System (Kontrolle)</label><div class="eur"><input class="money" id="cashSales" inputmode="decimal" placeholder="0,00"></div></div>
+    <p class="hint">Ablesen, nachdem die Abschöpfung im System ausgebucht ist.</p>
+    <div class="sockel"><label for="keep" class="lbl">Sockel</label><div class="eur"><input class="money" id="keep" inputmode="decimal" placeholder="150,00"></div></div>
+    <p class="hint" style="margin-top:-8px">Bleibt immer drin. Abgeschöpft wird nur in vollen 10 €.</p>
+  </div>
+
+  <div class="card"><h2>Rückfragen</h2><div class="qs" id="qA"></div></div>
+
+  <h2 style="margin-top:4px">Zum Eintragen</h2>
+  <div class="receipt" id="bonA"></div>
+  <div class="actions"><button class="primary" id="copyA">Text kopieren</button><button class="saveBtn">Abschluss speichern</button></div>
+  <textarea class="fallback" id="fbA" hidden readonly aria-label="Text zum Kopieren"></textarea>
+  <div class="toast" role="status"></div>
+</section>
+
+<section class="page" id="p-trinkgeld" hidden>
+  <div class="top"><div><h1>Trinkgeld</h1><p class="sub" id="dateLabel2"></p></div></div>
+  <div class="sum">
+    <div><span>EC</span><span id="tCard">0,00 €</span></div>
+    <div><span>Bar</span><span id="tBar">0,00 €</span></div>
+    <div><span>Stunden</span><span id="tHours">0</span></div>
+  </div>
+
+  <div class="card" id="sec-ec">
+    <div class="field"><label for="tipCard">1 · EC-Trinkgeld (Kartenterminal)</label><div class="eur"><input class="money" id="tipCard" inputmode="decimal" placeholder="0,00"></div></div>
+    <p class="hint">Wird vor dem Zählen bar aus der Kasse genommen und in der Abrechnung abgezogen.</p>
+  </div>
+
+  <div class="card" id="sec-tip">
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <h2>2 · Trinkgeldkasse (bar)</h2>
+      <div class="seg" role="group" aria-label="Trinkgeldkasse erfassen"><button id="tmCount" aria-pressed="true">Zählen</button><button id="tmSum" aria-pressed="false">Summe</button></div>
+    </div>
+    <div id="tipCountBox"><div class="denoms" id="tipGrid"></div></div>
+    <div class="field" id="tipSumBox" hidden><label for="tipSum">Summe Trinkgeldkasse</label><div class="eur"><input class="money" id="tipSum" inputmode="decimal" placeholder="0,00"></div></div>
+    <div class="total" style="padding-bottom:0"><span class="lbl">Trinkgeldkasse</span><span class="amt" id="tipBox" style="font-size:16px;font-weight:500">0,00 €</span></div>
+    <div class="total" style="border-top:0;padding-top:0"><span class="lbl" id="tipAdjLbl">Kassendifferenz (nur Info)</span><span class="amt" id="tipAdj" style="font-size:16px;font-weight:500">–</span></div>
+    <div class="total"><span class="lbl">Bar zum Verteilen</span><span class="amt" id="tipBar">0,00 €</span></div>
+    <p class="hint" style="margin-top:-6px" id="tipAdjHint">Wird nicht dazugerechnet. Zu viel in der Kasse kommt direkt ins Trinkgeldglas und wird oben mitgezählt.</p>
+  </div>
+
+  <div class="card" id="sec-team">
+    <h2>Wer hat gearbeitet?</h2>
+    <p class="hint" style="margin-top:-8px">Stunden als 7,5 oder 7:30. EC und Bar werden getrennt nach denselben Stunden aufgeteilt.</p>
+    <div class="tline" aria-hidden="true"><span>Name</span><span>Std.</span><span class="ec">EC €</span><span>Bar €</span><span></span></div>
+    <div class="lines" id="staffList"></div>
+    <div class="tline foot"><span>Summe</span><span id="fHours">0</span><span class="ec" id="fCard">–</span><span id="fBar">–</span><span></span></div>
+    <div class="tline foot per"><span>pro Stunde</span><span></span><span id="pCard">–</span><span id="pBar">–</span><span></span></div>
+    <div class="quick" id="quickStaff"></div>
+    <button class="ghost small" id="addStaff" style="align-self:flex-start">+ Person</button>
+  </div>
+
+  <div class="card"><h2>Rückfragen</h2><div class="qs" id="qT"></div></div>
+
+  <h2 style="margin-top:4px">Auszahlung</h2>
+  <button class="ghost" id="envBtn" aria-expanded="false" aria-controls="envBox">Umschläge: wer bekommt was</button>
+  <div class="card" id="envBox" hidden></div>
+  <div class="receipt" id="bonT"></div>
+  <div class="actions"><button class="primary" id="copyT">Text kopieren</button><button class="saveBtn">Abschluss speichern</button></div>
+  <textarea class="fallback" id="fbT" hidden readonly aria-label="Text zum Kopieren"></textarea>
+  <div class="toast" role="status"></div>
+</section>
+
+<section class="page" id="p-verlauf" hidden>
+  <div class="top"><div><h1>Verlauf</h1><p class="sub">Gespeicherte Abschlüsse der letzten sechs Monate.</p></div></div>
+  <div id="oldAsk"></div>
+  <div class="card" id="month" hidden></div>
+  <textarea class="fallback" id="fbM" hidden readonly aria-label="Text zum Kopieren"></textarea>
+  <div class="hist" id="hist"></div>
+  <div class="card" id="sec-backup">
+    <h2>Sicherung</h2>
+    <p class="hint" style="margin-top:-8px">Alles bleibt nur auf diesem Handy. Ab und zu eine Sicherung teilen (z.&nbsp;B. in Dateien oder per Mail), dann geht bei einem neuen Handy nichts verloren.</p>
+    <div class="actions" style="margin-top:0"><button class="ghost" id="bkOut">Sicherung teilen</button><button class="ghost" id="bkIn">Sicherung laden</button></div>
+    <input type="file" id="bkFile" accept=".json,application/json" hidden>
+  </div>
+  <div class="toast" role="status"></div>
+</section>
+</div>
+
+<nav class="tabbar lgx" role="tablist" aria-label="Seiten">
+  <button class="tab" role="tab" data-page="abrechnung" aria-selected="true">
+    <svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v4.5c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6M5 10.5V15c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-4.5"/></svg>Abrechnung</button>
+  <button class="tab" role="tab" data-page="trinkgeld" aria-selected="false">
+    <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><circle cx="17" cy="9" r="2.4"/><path d="M15.6 14.4c2.4-.3 4.3 1.2 4.9 3.9"/></svg>Trinkgeld</button>
+  <button class="tab" role="tab" data-page="verlauf" aria-selected="false">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Verlauf</button>
+</nav>
+
+<script>
+(function(){
+const NOTES=[10000,5000,2000,1000,500], COINS=[200,100,50,20,10,5,2,1], TIPN=[5000,2000,1000,500];
+const PAGES=["abrechnung","trinkgeld","verlauf"];
+const $=id=>document.getElementById(id);
+const fmt=c=>{const s=c<0?"−":"";c=Math.abs(Math.round(c));return s+Math.floor(c/100).toLocaleString("de-DE")+","+String(c%100).padStart(2,"0")+" €"};
+const fmtS=c=>(c>0?"+":"")+fmt(c);
+const dl=c=>c>=100?(c/100)+" €":c+" ct";
+const parse=v=>{v=String(v??"").trim().replace(/\s|€/g,"");if(!v)return null;if(v.includes(","))v=v.replace(/\./g,"").replace(",",".");const n=Number(v);return isFinite(n)?Math.round(n*100):NaN};
+const parseH=v=>{v=String(v||"").trim();if(!v)return null;const m=v.match(/^(\d+)\s*[:h]\s*(\d{1,2})$/);if(m)return +m[1]*60+ +m[2];const n=Number(v.replace(",","."));return isFinite(n)&&n>=0?Math.round(n*60):NaN};
+const hTxt=m=>(Math.round(m/60*100)/100).toLocaleString("de-DE")+" Std.";
+const ok=c=>c!=null&&!isNaN(c);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const today=()=>iso(new Date());
+const longDate=s=>s?new Date(s+"T12:00").toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}):"";
+const shortDate=s=>s?new Date(s+"T12:00").toLocaleDateString("de-DE",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"}):"";
+
+const blank=()=>({date:today(),cashSales:"",keep:"150,00",till:{},tipMode:"count",tip:{},tipSum:"",tipCard:"",staff:[{name:"",hours:""}],example:false,v:2,diffToTip:false,paid:[]});
+const example=()=>({v:2,date:today(),cashSales:"154,15",keep:"150,00",
+  till:{5000:2,2000:8,1000:12,500:15,200:20,100:25,50:18,20:22,10:15,5:10,2:9,1:7},tipMode:"count",tip:{1000:2,500:4,200:9,100:14,50:11,20:8},tipSum:"",tipCard:"38,50",
+  staff:[{name:"Alex",hours:"8"},{name:"Sam",hours:"6:30"},{name:"Kim",hours:"4"}],example:true,diffToTip:false,paid:[]});
+const migrate=s=>{const old=s&&!s.v;const b=Object.assign(blank(),s||{});if(s&&s.diffToTip===undefined)b.diffToTip=true;delete b.exp;delete b.cardSales;delete b.start;delete b.payFromTill;
+  b.till=Object.fromEntries(Object.entries(b.till||{}).filter(([d])=>+d<=10000));b.tip=b.tip||{};if(!Array.isArray(b.staff)||!b.staff.length)b.staff=[{name:"",hours:""}];if(!Array.isArray(b.paid))b.paid=[];
+  if(old){const c=parse(b.cashSales);if(ok(c)){const t=Object.entries(b.till).reduce((a,[d,n])=>a+ +d*(n||0),0),base=parse(b.keep)??15000,ec=parse(b.tipCard)||0;
+    const take=t>=base?Math.floor((t-base)/1000)*1000:0;b.cashSales=fmt(c-ec-take).replace(" €","")}b.v=2}
+  return b};
+
+let S=store.get("kassenapp.draft",null);const draftOld=S&&S.diffToTip===undefined;S=S?migrate(S):example();
+let hist=(store.get("kassenapp.history",[])||[]).map(h=>{const st=migrate(h.state),r=calc(st);return{...h,cash:r.cash,diff:r.diff,take:r.take,tip:r.tipTotal,tipCard:r.tipCard,tipBar:r.tipBar,state:st}});
+// Offener Entwurf von vor dem Update: neue Rechnung, außer der Tag ist schon so gespeichert
+if(draftOld&&!hist.some(h=>h.date===S.date))S.diffToTip=false;
+let editingId=null;
+// Gibt es Eingaben, die noch nicht im Verlauf gespeichert sind? (Beispielzahlen und leere Tage zählen nicht)
+function dirty(){if(S.example)return false;const cur=JSON.stringify({...S,example:false,paid:undefined});
+  if(cur===JSON.stringify({...blank(),keep:S.keep,date:S.date,tipMode:S.tipMode}))return false;
+  const h=hist.find(x=>x.date===S.date);return !h||JSON.stringify({...h.state,example:false,paid:undefined})!==cur}
+
+function calc(st){
+  const sum=o=>Object.entries(o||{}).reduce((a,[d,n])=>a+ +d*(n||0),0);
+  const r={};
+  r.till=sum(st.till);
+  r.cash=parse(st.cashSales);
+  r.baseIn=parse(st.keep);r.base=r.baseIn??15000;
+  r.tipBox=st.tipMode==="count"?sum(st.tip):(parse(st.tipSum)||0);
+  r.tipCardIn=parse(st.tipCard);r.tipCard=ok(r.tipCardIn)?r.tipCardIn:0;
+  r.take=!isNaN(r.base)&&r.till>0?(r.till>=r.base?Math.floor((r.till-r.base)/1000)*1000:0):null;
+  r.rest=r.take!=null?r.till-r.take:null;
+  r.ready=ok(r.cash);
+  r.diff=r.ready&&r.rest!=null?r.rest-r.cash:null;
+  r.inTip=st.diffToTip!==false;
+  r.keep=r.ready?(r.inTip||r.diff>=0?r.cash:r.rest):r.rest;
+  r.tipBar=r.tipBox+(r.inTip?(r.diff||0):0);
+  r.tipTotal=r.tipBar+r.tipCard;
+  r.staff=(st.staff||[]).map(s=>({name:(s.name||"").trim(),min:parseH(s.hours)}));
+  const valid=r.staff.filter(s=>s.min>0);
+  r.minutes=valid.reduce((a,s)=>a+s.min,0);
+  const split=(pot,key)=>{r.staff.forEach(s=>s[key]=null);if(!(r.minutes>0&&pot>0))return;let given=0;
+    const parts=valid.map(s=>{const ex=pot*s.min/r.minutes,f=Math.floor(ex);given+=f;return{s,f,rem:ex-f}});
+    let left=pot-given;parts.sort((a,b)=>b.rem-a.rem).forEach(p=>{p.s[key]=p.f+(left-->0?1:0)})};
+  split(r.tipCard,"shareCard");split(r.tipBar,"shareBar");
+  r.perCard=r.minutes>0?r.tipCard*60/r.minutes:null;r.perBar=r.minutes>0?r.tipBar*60/r.minutes:null;
+  return r;
+}
+
+function qAbr(r,st){const q=[],add=(s,t,g)=>q.push({s,t,g});
+  if(r.till===0)add("warn","Noch nichts gezählt. Wie viele Scheine und Münzen liegen in der Kasse?","sec-kasse");
+  if(!String(st.cashSales).trim())add("warn",r.take!=null?`Abschöpfung von ${fmt(r.take)} im System ausbuchen. Was zeigt es danach als Soll in der Kasse?`:"Was zeigt das System als Soll in der Kasse?","cashSales");else if(isNaN(r.cash))add("bad","Das Soll ist keine gültige Zahl.","cashSales");
+  if(String(st.keep).trim()&&isNaN(r.baseIn))add("bad","Der Sockel ist keine gültige Zahl.","keep");
+  if(r.diff!=null&&Math.abs(r.diff)>=500)add("bad",`Die Differenz ist mit ${fmtS(r.diff)} recht groß. Nochmal zählen und prüfen, ob EC-Trinkgeld und Abschöpfung im System richtig ausgebucht sind.`,"sec-kasse");
+  if(r.till>0&&!isNaN(r.base)&&r.till<r.base)add("bad",`Gezählt sind nur ${fmt(r.till)}, der Sockel ist aber ${fmt(r.base)}. Es wird nichts abgeschöpft.`,"sec-kasse");
+  return q}
+function qTip(r,st){const q=[],add=(s,t,g)=>q.push({s,t,g});
+  if(st.tipMode==="sum"&&String(st.tipSum).trim()&&isNaN(parse(st.tipSum)))add("bad","Die Summe der Trinkgeldkasse ist keine gültige Zahl.","tipSum");
+  if(!String(st.tipCard).trim())add("warn","Gab es heute EC-Trinkgeld? Trag 0 ein, falls nicht.","tipCard");
+  else if(isNaN(r.tipCardIn))add("bad","Das EC-Trinkgeld ist keine gültige Zahl.","tipCard");
+  r.staff.forEach((s,i)=>{const raw=st.staff[i];if(!String(raw.name||"").trim()&&!String(raw.hours||"").trim())return;const who=s.name||"Person "+(i+1);
+    if(isNaN(s.min))add("bad",`Stunden bei ${esc(who)} nicht lesbar. Schreib z. B. 7,5 oder 7:30.`,"sth_"+i);
+    else if(!s.min)add("warn",`Wie lange hat ${esc(who)} gearbeitet?`,"sth_"+i);
+    else if(!s.name)add("warn",`Wer hat ${hTxt(s.min)} gearbeitet? Der Name fehlt.`,"stn_"+i);
+    else if(s.min>14*60)add("warn",`${esc(s.name)} mit ${hTxt(s.min)}? Bitte prüfen.`,"sth_"+i)});
+  const n=r.staff.map(s=>s.name.toLowerCase()).filter(Boolean);
+  if(new Set(n).size!==n.length)add("warn","Ein Name steht doppelt in der Liste.","sec-team");
+  if(r.tipTotal>0&&r.minutes===0)add("warn","Es gibt Trinkgeld, aber noch niemanden mit Stunden. Wer hat gearbeitet?","sec-team");
+  if(r.tipBar<0)add("bad",`Das Bar-Trinkgeld reicht nicht, um die fehlenden ${fmt(-r.diff)} in der Kasse auszugleichen.`,"sec-tip");
+  if(r.tipBox===0&&String(st.tipCard).trim()&&r.minutes>0)add("warn","Noch kein Bar-Trinkgeld eingetragen. Trinkgeldkasse schon gezählt?","sec-tip");
+  return q}
+
+function bonA(r,st){const L=[],row=(a,b,c)=>L.push({a,b,c}),hr=()=>L.push({hr:1});
+  L.push({t:"ABRECHNUNG"},{t:shortDate(st.date)});hr();
+  row("Gezählt (ohne EC-TG)",fmt(r.till));
+  row("Abschöpfen (Tresor)",r.take!=null?fmt(r.take):"?","big");
+  row("Rest in der Kasse",r.rest!=null?fmt(r.rest):"?");hr();
+  row("Soll laut System",ok(r.cash)?fmt(r.cash):"?");
+  row("Differenz",r.diff!=null?(r.diff===0?"0,00 €":fmtS(r.diff)):"?","big "+(r.diff<0?"neg":r.diff>0?"pos":""));
+  if(r.diff&&r.inTip)row(r.diff>0?"  → ins Bar-Trinkgeld":"  → aus Bar-Trinkgeld",fmt(Math.abs(r.diff)));
+  else if(r.diff>0)row("  → ins Trinkgeldglas",fmt(r.diff));hr();
+  row("Bleibt drin",r.keep!=null?fmt(r.keep):"?","big");
+  return L}
+function bonT(r,st){const L=[],row=(a,b,c)=>L.push({a,b,c}),hr=()=>L.push({hr:1});
+  L.push({t:"TRINKGELD"},{t:shortDate(st.date)});hr();
+  const st2=r.staff.filter(s=>s.min>0);
+  row("Stunden gesamt",hTxt(r.minutes));
+  [["EC-TRINKGELD",r.tipCard,r.perCard,"shareCard"],["BAR-TRINKGELD",r.tipBar,r.perBar,"shareBar"]].forEach(([t,pot,per,k])=>{hr();
+    L.push({t});if(k==="shareBar"){row("Trinkgeldkasse",fmt(r.tipBox));if(r.diff&&r.inTip)row("Kassenausgleich",fmtS(r.diff))}row("Summe",fmt(pot),"big");if(per!=null)row("Pro Stunde",fmt(per).replace(" €"," €/h"));
+    st2.forEach(s=>row((s.name||"?")+" · "+hTxt(s.min),s[k]!=null?fmt(s[k]):"–"))});
+  return L}
+const bonHTML=L=>L.map(l=>l.hr?"<hr>":l.t!=null?`<div class="t">${esc(l.t)}</div>`:`<div class="r ${l.c||""}"><span>${esc(l.a)}</span><span>${esc(l.b)}</span></div>`).join("");
+const bonText=L=>L.map(l=>l.hr?"--------------------------------":l.t!=null?l.t:(l.a+" ").padEnd(24,".")+" "+l.b).join("\n");
+
+function denomGrid(el,key,notes){
+  let h="";for(const [t,arr] of [["Scheine",notes],["Münzen",COINS]]){h+=`<div class="groupT">${t}</div>`;
+    for(const d of arr){const id=key+"_"+d;h+=`<div class="dn" data-k="${key}" data-d="${d}"><span class="chip${d<500?" coin":""}">${dl(d)}</span>
+      <div class="stepper"><button type="button" data-step="-1" aria-label="${dl(d)} weniger">−</button><input class="cnt" id="${id}" inputmode="numeric" placeholder="0" aria-label="Anzahl ${dl(d)}"><button type="button" data-step="1" aria-label="${dl(d)} mehr">+</button></div>
+      <span class="amt">–</span></div>`}}
+  el.innerHTML=h;
+  el.addEventListener("input",e=>{const r=e.target.closest(".dn");if(!r)return;const v=e.target.value.replace(/\D/g,"");e.target.value=v;S[key][r.dataset.d]=v?+v:0;update()});
+  el.addEventListener("click",e=>{const b=e.target.closest("button[data-step]");if(!b)return;const r=b.closest(".dn"),d=r.dataset.d;
+    S[key][d]=Math.max(0,(S[key][d]||0)+ +b.dataset.step);r.querySelector("input").value=S[key][d]||"";update()});
+}
+denomGrid($("tillGrid"),"till",NOTES);
+denomGrid($("tipGrid"),"tip",TIPN);
+
+const FIELDS=["cashSales","keep","tipSum","tipCard"];
+function fillForm(){
+  $("date").value=S.date;FIELDS.forEach(k=>$(k).value=S[k]||"");
+  document.querySelectorAll(".dn").forEach(r=>{r.querySelector("input").value=S[r.dataset.k][r.dataset.d]||""});
+  renderStaff();setTipMode(S.tipMode,true);
+}
+FIELDS.forEach(k=>$(k).addEventListener("input",e=>{S[k]=e.target.value;update()}));
+$("date").addEventListener("input",e=>{S.date=e.target.value;update()});
+function setTipMode(m,silent){S.tipMode=m;$("tmCount").setAttribute("aria-pressed",m==="count");$("tmSum").setAttribute("aria-pressed",m==="sum");
+  $("tipCountBox").hidden=m!=="count";$("tipSumBox").hidden=m!=="sum";if(!silent)update()}
+$("tmCount").onclick=()=>setTipMode("count");$("tmSum").onclick=()=>setTipMode("sum");
+
+function renderStaff(){$("staffList").innerHTML=S.staff.map((x,i)=>`<div class="line" data-i="${i}">
+  <input id="stn_${i}" data-f="name" placeholder="Name" value="${esc(x.name)}" aria-label="Name Person ${i+1}">
+  <input id="sth_${i}" data-f="hours" class="money" inputmode="decimal" placeholder="Std." value="${esc(x.hours)}" aria-label="Stunden Person ${i+1}">
+  <span class="share amt ec" id="stc_${i}">–</span>
+  <span class="share amt" id="stb_${i}">–</span>
+  <button class="x" data-del aria-label="Person entfernen">✕</button></div>`).join("");renderQuick()}
+$("staffList").addEventListener("input",e=>{const r=e.target.closest(".line");S.staff[r.dataset.i][e.target.dataset.f]=e.target.value;if(e.target.dataset.f==="name")renderQuick();update()});
+$("staffList").addEventListener("click",e=>{if(!e.target.closest("[data-del]"))return;S.staff.splice(+e.target.closest(".line").dataset.i,1);renderStaff();update()});
+$("addStaff").onclick=()=>{S.staff.push({name:"",hours:""});renderStaff();update();$("stn_"+(S.staff.length-1)).focus()};
+function renderQuick(){const used=new Set(S.staff.map(s=>s.name.trim().toLowerCase())),names=[];
+  for(const h of hist)for(const s of h.state.staff||[]){const n=(s.name||"").trim();if(n&&!used.has(n.toLowerCase())&&!names.includes(n))names.push(n)}
+  $("quickStaff").innerHTML=names.slice(0,12).map(n=>`<button data-n="${esc(n)}">+ ${esc(n)}</button>`).join("")}
+$("quickStaff").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  const empty=S.staff.findIndex(s=>!s.name.trim()&&!String(s.hours).trim()),p={name:b.dataset.n,hours:""};
+  if(empty>=0)S.staff[empty]=p;else S.staff.push(p);renderStaff();update();$("sth_"+S.staff.indexOf(p)).focus()});
+
+const qHTML=q=>q.map(x=>`<div class="q${x.s==="bad"?" bad":""}"><b>?</b><span>${x.t} <a href="#" data-go="${x.g}">Hin</a></span></div>`).join("");
+let LA=[],LT=[];
+function update(){
+  const r=calc(S);
+  document.querySelectorAll(".dn").forEach(row=>{const n=S[row.dataset.k][row.dataset.d]||0;row.classList.toggle("has",n>0);row.querySelector(".amt").textContent=n?fmt(n* +row.dataset.d):"–"});
+  $("tillTotal").textContent=fmt(r.till);$("sTill").textContent=fmt(r.till);
+  const sd=$("sDiff");sd.textContent=r.diff==null?"–":r.diff===0?"0,00 €":fmtS(r.diff);sd.className=r.diff==null?"":r.diff===0?"st-ok":Math.abs(r.diff)>=500?"st-bad":"st-warn";
+  $("sTake").textContent=r.take!=null?fmt(r.take):"–";
+  $("tipBar").textContent=fmt(r.tipBar);$("tipBox").textContent=fmt(r.tipBox);$("tipAdj").textContent=r.diff==null?"–":r.diff===0?"0,00 €":fmtS(r.diff);
+  $("tipAdjLbl").textContent=r.inTip?"Kassenausgleich":"Kassendifferenz (nur Info)";$("tipAdjHint").textContent=r.inTip?"Älterer Abschluss: Zu viel in der Kasse kam hier dazu, zu wenig wurde hier ausgeglichen.":"Wird nicht dazugerechnet. Zu viel in der Kasse kommt direkt ins Trinkgeldglas und wird oben mitgezählt.";
+  $("takeAmt").textContent=r.take!=null?fmt(r.take):"–";$("takeBox").classList.toggle("empty",r.take==null);
+  $("takeHint").textContent=r.take!=null?(r.take>0?`In den Tresor legen und im System ausbuchen. Danach liegen ${fmt(r.rest)} in der Kasse.`:`Nichts abzuschöpfen, es liegen ${fmt(r.rest)} in der Kasse.`):"Erst zählen, dann steht hier der Betrag.";$("tCard").textContent=fmt(r.tipCard);$("tBar").textContent=fmt(r.tipBar);$("tHours").textContent=hTxt(r.minutes);
+  const n2=c=>c==null?"–":fmt(c).replace(" €","");
+  $("fHours").textContent=(Math.round(r.minutes/60*100)/100).toLocaleString("de-DE");$("fCard").textContent=n2(r.tipCard);$("fBar").textContent=n2(r.tipBar);
+  $("pCard").textContent=n2(r.perCard);$("pBar").textContent=n2(r.perBar);
+  r.staff.forEach((s,i)=>{const a=$("stc_"+i),b=$("stb_"+i);if(a)a.textContent=n2(s.shareCard);if(b)b.textContent=n2(s.shareBar)});
+  const qa=qAbr(r,S),qt=qTip(r,S);
+  $("qA").innerHTML=qa.length?qHTML(qa):`<div class="ok">Alles da und die Kasse stimmt auf den Cent.</div>`;
+  $("qT").innerHTML=qt.length?qHTML(qt):`<div class="ok">Alles da, die Verteilung geht auf den Cent auf.</div>`;
+  LA=bonA(r,S);LT=bonT(r,S);$("bonA").innerHTML=bonHTML(LA);$("bonT").innerHTML=bonHTML(LT);
+  $("dateLabel").textContent=longDate(S.date);$("dateLabel2").textContent=longDate(S.date);
+  $("exBanner").hidden=!S.example;
+  const ed=editingId&&hist.find(h=>h.id===editingId);$("editing").hidden=!ed;if(ed)$("editing").textContent=`Du bearbeitest den gespeicherten Abschluss vom ${shortDate(ed.date)}. „Neuer Tag“ leert die Felder wieder.`;
+  renderEnv(r);
+  store.set("kassenapp.draft",S);
+}
+
+// Umschläge: EC- und Bar-Anteil zusammen. Zuerst Scheine und Münzen aus der gezählten Trinkgeldkasse (genau passend, wenn möglich),
+// was dann noch fehlt, kommt bar aus der Kasse (das EC-Trinkgeld, plus Tausch gegen übrige Münzen aus der Trinkgeldkasse).
+const ENV=[5000,2000,1000,500,200,100,50,20,10,5,2,1];
+const greedy=c=>{const o={};for(const d of ENV){const n=Math.floor(c/d);if(n){o[d]=n;c-=n*d}}return o};
+const pick=(c,pool)=>{const o={};let rem=c;for(const d of ENV){const n=Math.min(Math.floor(rem/d),pool[d]||0);if(n){o[d]=n;rem-=n*d}}
+  if(!rem||c>40000)return{o,rem};
+  // Begrenzter Rucksack: wenigste Stücke, die genau c ergeben
+  const items=[];ENV.forEach(d=>{let k=pool[d]||0,m=1;while(k>0){const t=Math.min(m,k);items.push([d,t]);k-=t;m*=2}});
+  const INF=1e9,dp=new Int32Array(c+1).fill(INF),take=items.map(()=>new Uint8Array(c+1));dp[0]=0;
+  items.forEach(([d,t],j)=>{const w=d*t;for(let v=c;v>=w;v--)if(dp[v-w]+t<dp[v]){dp[v]=dp[v-w]+t;take[j][v]=1}});
+  if(dp[c]>=INF)return{o,rem};const o2={};let v=c;for(let j=items.length-1;j>=0;j--)if(take[j][v]){const [d,t]=items[j];o2[d]=(o2[d]||0)+t;v-=d*t}
+  return{o:o2,rem:0}};
+const list=o=>Object.entries(o).filter(([,n])=>n>0).map(([d,n])=>[+d,n]).sort((a,b)=>b[0]-a[0]);
+const plHTML=o=>list(o).map(([d,n])=>`<div class="pl"><span class="chip${d<500?" coin":""}">${dl(d)}</span><span class="n">× ${n}</span><span class="a">${fmt(d*n)}</span></div>`).join("");
+const envKey=(s,i)=>s.name?s.name.toLowerCase():"#"+i;
+let envOpen=false,envSel=null;
+function envPlan(r){const ppl=r.staff.map((s,i)=>({...s,k:envKey(s,i),i,c:(s.shareCard||0)+(s.shareBar||0)})).filter(s=>s.min>0);
+  const counted=S.tipMode==="count",pool={},till={},add=(a,o)=>Object.entries(o).forEach(([d,n])=>a[d]=(a[d]||0)+n);
+  if(counted)Object.entries(S.tip).forEach(([d,n])=>{if(n>0)pool[d]=n});
+  [...ppl].sort((a,b)=>b.c-a.c).forEach(s=>{if(!counted){s.p=greedy(s.c);return}const x=pick(s.c,pool),t=greedy(x.rem);
+    Object.entries(x.o).forEach(([d,n])=>pool[d]-=n);s.p={};add(s.p,x.o);add(s.p,t);add(till,t)});
+  const sum=o=>Object.entries(o).reduce((a,[d,n])=>a+d*n,0);
+  return{ppl,counted,till,tillSum:sum(till),left:pool,leftSum:sum(pool)}}
+function renderEnv(r){const btn=$("envBtn"),box=$("envBox");btn.setAttribute("aria-expanded",envOpen);btn.textContent=envOpen?"Umschläge ausblenden":"Umschläge: wer bekommt was";box.hidden=!envOpen;if(!envOpen)return;
+  if(!Array.isArray(S.paid))S.paid=[];const P=envPlan(r),ppl=P.ppl;
+  if(!ppl.length||r.tipTotal<=0){box.innerHTML=`<h2>Umschläge</h2><p class="hint">${ppl.length?"Noch kein Trinkgeld eingetragen.":"Erst oben eintragen, wer wie lange gearbeitet hat."}</p>`;return}
+  const done=ppl.filter(s=>S.paid.includes(s.k)).length;
+  const rows=ppl.map(s=>{const on=S.paid.includes(s.k),op=envSel===s.k,nm=esc(s.name||"Person "+(s.i+1));
+    return `<div class="env${on?" done":""}${op?" open":""}"><div class="eh"><button class="ck" data-env="${esc(s.k)}" aria-pressed="${on}" aria-label="${nm} eingepackt"><i aria-hidden="true">✓</i></button>
+      <button class="eo" data-eo="${esc(s.k)}" aria-expanded="${op}"><span class="who"><b>${nm}</b><small>EC ${fmt(s.shareCard||0)} · Bar ${fmt(s.shareBar||0)}</small></span><span class="tot">${fmt(s.c)}</span><span class="chev" aria-hidden="true">›</span></button></div>
+      ${op?`<div class="ed">${plHTML(s.p)}
+      <button class="${on?"ghost":"primary"} small" data-env="${esc(s.k)}" data-next="1">${on?"Doch nicht eingepackt":"Eingepackt"}</button></div>`:""}</div>`}).join("");
+  const tl=list(P.till);
+  box.innerHTML=`<div class="envhead"><h2>Umschläge</h2><span>${done===ppl.length?"Alle eingepackt":done+" von "+ppl.length+" eingepackt"}</span></div>
+    <p class="hint" style="margin-top:-8px">${P.counted?"Aufgeteilt aus der gezählten Trinkgeldkasse, EC und Bar zusammen.":"Die Trinkgeldkasse ist nur als Summe erfasst, daher in üblichen Scheinen und Münzen. Für die Aufteilung aus dem Gezählten oben „Zählen“ wählen."} Person antippen zum Aufklappen, Kreis antippen zum Abhaken.</p>
+    <div class="envs">${rows}</div>
+    ${tl.length?`<div class="envx"><div class="lbl">Aus der Kasse dazunehmen · ${fmt(P.tillSum)}</div>${plHTML(P.till)}
+      ${P.leftSum?`<p class="hint">Darin ${fmt(P.leftSum)} zum Tauschen: Dafür kommen diese Münzen aus der Trinkgeldkasse in die Kasse:</p>${plHTML(P.left)}`:""}</div>`:""}
+    ${done?`<button class="ghost small" id="envReset" style="align-self:flex-start">Häkchen zurücksetzen</button>`:""}`}
+$("envBtn").onclick=()=>{envOpen=!envOpen;renderEnv(calc(S));if(envOpen)$("envBox").scrollIntoView({block:"nearest",behavior:matchMedia("(prefers-reduced-motion:reduce)").matches?"auto":"smooth"})};
+$("envBox").addEventListener("click",e=>{if(e.target.closest("#envReset")){S.paid=[];update();return}
+  const o=e.target.closest("[data-eo]");if(o){envSel=envSel===o.dataset.eo?null:o.dataset.eo;renderEnv(calc(S));return}
+  const b=e.target.closest("[data-env]");if(!b)return;const k=b.dataset.env,was=S.paid.includes(k);S.paid=was?S.paid.filter(x=>x!==k):[...S.paid,k];
+  // Nach „Eingepackt“ im aufgeklappten Feld gleich die nächste Person öffnen
+  if(b.dataset.next&&!was){const r=calc(S),nx=r.staff.map((s,i)=>({...s,k:envKey(s,i)})).find(s=>s.min>0&&!S.paid.includes(s.k));envSel=nx?nx.k:null}
+  update()});
+
+function show(p,keepScroll){if(!PAGES.includes(p))p="abrechnung";
+  PAGES.forEach(x=>$("p-"+x).hidden=x!==p);
+  document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t.dataset.page===p));
+  try{history.replaceState(null,"","#"+p)}catch(e){}
+  store.set("kassenapp.page",p);if(p==="verlauf")renderHist();if(!keepScroll)window.scrollTo(0,0)}
+document.querySelector(".tabbar").addEventListener("click",e=>{const t=e.target.closest(".tab");if(t)show(t.dataset.page)});
+document.addEventListener("click",e=>{const a=e.target.closest("[data-go]");if(!a)return;e.preventDefault();const el=$(a.dataset.go);if(!el)return;
+  const pg=el.closest(".page");if(pg&&pg.hidden)show(pg.id.slice(2),true);
+  setTimeout(()=>{el.scrollIntoView({block:"center",behavior:matchMedia("(prefers-reduced-motion:reduce)").matches?"auto":"smooth"});if(el.tagName==="INPUT")setTimeout(()=>el.focus({preventScroll:true}),300)},30)});
+
+function toast(t){document.querySelectorAll(".page:not([hidden]) .toast").forEach(el=>{el.textContent=t;clearTimeout(el._t);el._t=setTimeout(()=>el.textContent="",3500)})}
+function copy(L,fb){const txt=bonText(L),f=$(fb);const fall=()=>{f.hidden=false;f.value=txt;f.focus();f.select();toast("Text markiert, jetzt kopieren.")};
+  try{navigator.clipboard.writeText(txt).then(()=>{f.hidden=true;toast("Kopiert.")},fall)}catch(e){fall()}}
+$("copyA").onclick=()=>copy(LA,"fbA");$("copyT").onclick=()=>copy(LT,"fbT");
+
+document.querySelectorAll(".saveBtn").forEach(b=>b.onclick=()=>{
+  if(S.example){toast("Das sind Beispielzahlen. Erst oben „Leeren und loslegen“ tippen.");return}
+  const moved=editingId&&hist.find(h=>h.id===editingId&&h.date!==S.date);if(moved)hist=hist.filter(h=>h!==moved);
+  const r=calc(S),snap=JSON.parse(JSON.stringify(S));snap.example=false;
+  const entry={id:Date.now(),date:S.date,cash:r.cash,diff:r.diff,take:r.take,tip:r.tipTotal,tipCard:r.tipCard,tipBar:r.tipBar,state:snap};
+  const i=hist.findIndex(h=>h.date===S.date);if(i>=0){entry.id=hist[i].id;hist[i]=entry}else hist.unshift(entry);
+  hist.sort((a,b)=>b.date.localeCompare(a.date));store.set("kassenapp.history",hist);editingId=entry.id;renderQuick();update();
+  toast(moved?"Abschluss auf "+shortDate(S.date)+" verschoben.":i>=0?"Abschluss für diesen Tag aktualisiert.":"Abschluss gespeichert.")});
+
+let armNew=false;
+$("newDay").onclick=()=>{const b=$("newDay");if(!armNew){armNew=true;const d=dirty();b.textContent=d?"Nicht gespeichert! Leeren?":"Wirklich leeren?";if(d)toast("Dieser Tag ist noch nicht gespeichert. Nochmal tippen leert ihn trotzdem.");setTimeout(()=>{armNew=false;b.textContent="Neuer Tag"},d?4500:3000);return}
+  armNew=false;b.textContent="Neuer Tag";const base=S.keep;S=blank();if(base)S.keep=base;editingId=null;fillForm();update();window.scrollTo(0,0);toast("Neuer Tag, alle Felder leer.")};
+$("exClear").onclick=()=>{S=blank();editingId=null;fillForm();update()};
+
+const cutoff=()=>{const d=new Date();d.setMonth(d.getMonth()-6);return iso(d)};
+let openId=null,delArm=null,oldAsked=false,editArm=null,selMonth=null;
+function monthData(m){const P={};let days=0;
+  hist.filter(h=>h.date.slice(0,7)===m).forEach(h=>{days++;calc(h.state).staff.forEach(s=>{if(!(s.min>0))return;const n=s.name||"?",k=n.toLowerCase();
+    const p=P[k]||(P[k]={name:n,min:0,card:0,bar:0});p.min+=s.min;p.card+=s.shareCard||0;p.bar+=s.shareBar||0})});
+  return{days,list:Object.values(P).sort((a,b)=>b.min-a.min||a.name.localeCompare(b.name))}}
+const monthName=m=>new Date(m+"-15T12:00").toLocaleDateString("de-DE",{month:"long",year:"numeric"});
+function monthLines(m){const d=monthData(m),L=[{t:"TRINKGELD "+monthName(m).toUpperCase()},{t:d.days+(d.days===1?" Tag":" Tage")},{hr:1}];
+  d.list.forEach(p=>{L.push({a:p.name+" · "+hTxt(p.min),b:""});L.push({a:"  EC",b:fmt(p.card)});L.push({a:"  Bar",b:fmt(p.bar)});L.push({a:"  Zusammen",b:fmt(p.card+p.bar)})});
+  return L}
+function renderMonth(){const box=$("month"),ms=[...new Set(hist.map(h=>h.date.slice(0,7)))].sort().reverse();box.hidden=!ms.length;if(!ms.length)return;
+  if(!ms.includes(selMonth))selMonth=ms[0];const d=monthData(selMonth),n2=c=>fmt(c).replace(" €","");
+  const tot=d.list.reduce((a,p)=>({min:a.min+p.min,card:a.card+p.card,bar:a.bar+p.bar}),{min:0,card:0,bar:0});
+  box.innerHTML=`<div class="mhead"><h2>Trinkgeld im Monat</h2><select id="mSel" aria-label="Monat">${ms.map(m=>`<option value="${m}"${m===selMonth?" selected":""}>${monthName(m)}</option>`).join("")}</select></div>`+
+    (d.list.length?`<p class="hint" style="margin-top:-6px">${d.days} ${d.days===1?"gespeicherter Tag":"gespeicherte Tage"}, je Person zusammengezählt.</p><div><div class="mrow th"><span>Name</span><span>Std.</span><span class="ec">EC €</span><span>Bar €</span></div>`+
+    d.list.map(p=>`<div class="mrow"><span>${esc(p.name)}</span><span>${(Math.round(p.min/60*100)/100).toLocaleString("de-DE")}</span><span class="ec">${n2(p.card)}</span><span>${n2(p.bar)}</span></div>`).join("")+
+    `<div class="mrow ft"><span>Summe</span><span>${(Math.round(tot.min/60*100)/100).toLocaleString("de-DE")}</span><span class="ec">${n2(tot.card)}</span><span>${n2(tot.bar)}</span></div></div><div class="actions"><button class="ghost small" id="copyM">Text kopieren</button></div>`
+    :`<p class="hint">In diesem Monat ist noch niemand mit Stunden eingetragen.</p>`)}
+$("month").addEventListener("change",e=>{if(e.target.id==="mSel"){selMonth=e.target.value;renderMonth()}});
+$("month").addEventListener("click",e=>{if(e.target.id==="copyM")copy(monthLines(selMonth),"fbM")});
+function renderHist(){
+  renderMonth();
+  const old=hist.filter(h=>h.date<cutoff());
+  $("oldAsk").innerHTML=old.length&&!oldAsked?`<div class="q"><b>?</b><span>${old.length===1?"Ein Abschluss ist":old.length+" Abschlüsse sind"} älter als sechs Monate. Löschen?
+    <span class="actions" style="margin-top:8px"><button class="small primary" data-old="del">Löschen</button><button class="small ghost" data-old="keep">Behalten</button></span></span></div>`:"";
+  if(!hist.length){$("hist").innerHTML=`<div class="card"><p class="hint">Noch nichts gespeichert. Nach der Abrechnung „Abschluss speichern“ tippen, dann taucht der Tag hier auf.</p></div>`;return}
+  $("hist").innerHTML=hist.map(h=>{const dc=h.diff==null?"":h.diff===0?"st-ok":Math.abs(h.diff)>=500?"st-bad":"st-warn";const open=openId===h.id;
+    let body="";if(open){const r=calc(h.state);body=`<div class="body"><div class="receipt">${bonHTML(bonA(r,h.state))}</div><div class="receipt">${bonHTML(bonT(r,h.state))}</div>
+      <div class="actions"><button class="small primary" data-edit="${h.id}">Bearbeiten</button><button class="small ghost danger" data-del="${h.id}">${delArm===h.id?"Wirklich löschen?":"Löschen"}</button></div></div>`}
+    return `<div class="hi${open?" open":""}"><button class="head" data-open="${h.id}" aria-expanded="${open}"><span class="d">${shortDate(h.date)}</span><span class="chev">›</span>
+      <span class="m">Abschöpfung ${h.take!=null?fmt(h.take):"–"} · Diff <span class="${dc}">${h.diff==null?"–":h.diff===0?"0,00 €":fmtS(h.diff)}</span> · TG EC ${fmt(h.tipCard??0)} / Bar ${fmt(h.tipBar??0)}</span></button>${body}</div>`}).join("")}
+$("p-verlauf").addEventListener("click",e=>{
+  const o=e.target.closest("[data-old]"),op=e.target.closest("[data-open]"),ed=e.target.closest("[data-edit]"),d=e.target.closest("[data-del]");
+  if(o){if(o.dataset.old==="del"){const c=cutoff();hist=hist.filter(h=>h.date>=c);store.set("kassenapp.history",hist);toast("Alte Abschlüsse gelöscht.")}oldAsked=true;renderHist();return}
+  if(op){const id=+op.dataset.open;openId=openId===id?null:id;delArm=null;renderHist();return}
+  if(ed){const id=+ed.dataset.edit;if(dirty()&&editArm!==id){editArm=id;ed.textContent="Aktueller Tag nicht gespeichert. Trotzdem?";toast("Der Tag, den du gerade zählst, ist noch nicht gespeichert und würde ersetzt.");setTimeout(()=>{if(editArm===id){editArm=null;renderHist()}},4500);return}
+    editArm=null;const h=hist.find(x=>x.id==ed.dataset.edit);if(h){S=migrate(JSON.parse(JSON.stringify(h.state)));editingId=h.id;fillForm();update();show("abrechnung")}return}
+  if(d){const id=+d.dataset.del;if(delArm===id){hist=hist.filter(x=>x.id!==id);store.set("kassenapp.history",hist);delArm=null;openId=null;if(editingId===id)editingId=null;toast("Gelöscht.")}
+    else{delArm=id;setTimeout(()=>{if(delArm===id){delArm=null;renderHist()}},3000)}renderHist()}});
+
+fillForm();update();
+const h0=(location.hash||"").slice(1);show(PAGES.includes(h0)?h0:store.get("kassenapp.page","abrechnung"),true);
+})();
+</script>
+
+<script>
+/* ---------- Glasleiste unten wie im Brühbuch/Atlas v139: Linse gleitet federnd, ziehbar, Schimmer ---------- */
+(function(){
+ var bar=document.querySelector(".lgx");if(!bar)return;
+ var reduce=matchMedia("(prefers-reduced-motion: reduce)").matches,cl=function(v,a,b){return Math.max(a,Math.min(b,v))};
+ var DK=function(){var t=document.documentElement.getAttribute("data-theme");return t?t=="dark":matchMedia("(prefers-color-scheme: dark)").matches};
+ var th=document.createElement("i");th.className="lgx-th";bar.prepend(th);
+ var L=[].slice.call(bar.querySelectorAll("button"));
+ var x=0,y=0,w=0,h=0,vx=0,tx=0,ty=0,tw=0,thh=0,press=0,raf=0,drag=false,hl=30,first=true,last=0,pid=null,sx0=0,moved=false;
+ function target(){return L.filter(function(l){return l.getAttribute("aria-selected")=="true"})[0]||L[0]}
+ function setT(lb){tx=lb.offsetLeft;ty=lb.offsetTop;tw=lb.offsetWidth;thh=lb.offsetHeight;if(first||reduce){x=tx;y=ty;w=tw;h=thh;first=false;draw()}kick()}
+ function draw(){var st=Math.min(Math.abs(vx)/900,.32),p=1+press*.14,dk=DK();
+  th.style.width=w+"px";th.style.height=h+"px";th.style.transform="translate("+x.toFixed(2)+"px,"+y+"px) scale("+((1+st)*p).toFixed(3)+","+((1-st*.55)*p).toFixed(3)+")";
+  hl+=((50-cl(vx/18,-40,40))-hl)*.2;th.style.setProperty("--hx",hl.toFixed(1)+"%");th.style.setProperty("--ho",(.55+press*.4+st).toFixed(2));
+  th.style.background=dk?"linear-gradient(180deg,rgba(255,255,255,"+(.30-.16*press).toFixed(2)+"),rgba(255,255,255,"+(.14-.08*press).toFixed(2)+"))":"linear-gradient(180deg,rgba(255,255,255,"+(.98-.62*press).toFixed(2)+"),rgba(255,255,255,"+(.72-.5*press).toFixed(2)+"))";
+  th.style.setProperty("--ro",(press*.7).toFixed(2));th.style.setProperty("--so",(press*.35).toFixed(2))}
+ function step(t){var dt=Math.min(.033,(t-(last||t))/1000)||.016;last=t;var k=drag?900:260,dm=drag?2*Math.sqrt(900)*.9:2*Math.sqrt(260)*.62;
+  vx+=(k*(tx-x)-dm*vx)*dt;x+=vx*dt;w+=(tw-w)*Math.min(1,dt*14);h+=(thh-h)*Math.min(1,dt*14);press+=((drag?1:0)-press)*Math.min(1,dt*12);draw();
+  if(Math.abs(tx-x)>.3||Math.abs(vx)>2||Math.abs(press-(drag?1:0))>.01)raf=requestAnimationFrame(step);else{raf=0;last=0;x=tx;vx=0;draw()}}
+ function kick(){if(reduce){x=tx;y=ty;w=tw;h=thh;press=0;draw();return}if(!raf){last=0;raf=requestAnimationFrame(step)}}
+ addEventListener("resize",function(){first=true;setT(target())});
+ function nearest(px){var b=L[0],bd=1e9,r=bar.getBoundingClientRect();L.forEach(function(l){var dd=Math.abs(px-r.left-(l.offsetLeft+l.offsetWidth/2));if(dd<bd){bd=dd;b=l}});return b}
+ bar.addEventListener("pointerdown",function(e){pid=e.pointerId;sx0=e.clientX;moved=false;drag=true;var lb=nearest(e.clientX);tx=lb.offsetLeft;tw=lb.offsetWidth;kick()});
+ bar.addEventListener("pointermove",function(e){if(e.pointerId!==pid)return;if(Math.abs(e.clientX-sx0)>8&&!moved){moved=true;try{bar.setPointerCapture(pid)}catch(z){}}
+  if(!moved)return;var r=bar.getBoundingClientRect();tx=cl(e.clientX-r.left-tw/2,0,bar.offsetWidth-tw);var lb=nearest(e.clientX);L.forEach(function(l){l.classList.toggle("lgx-near",l===lb)});kick()});
+ function up(e){if(e.pointerId!==pid)return;pid=null;drag=false;L.forEach(function(l){l.classList.remove("lgx-near")});if(moved){var lb=nearest(e.clientX);lb.click()}setT(target())}
+ bar.addEventListener("pointerup",up);bar.addEventListener("pointercancel",function(e){if(e.pointerId!==pid)return;pid=null;drag=false;moved=false;setT(target())});
+ new MutationObserver(function(){setT(target())}).observe(bar,{subtree:true,attributes:true,attributeFilter:["aria-selected"]});
+ if(!reduce){var s0=0,sh=function(t){if(document.hidden){s0=0;document.addEventListener("visibilitychange",function(){requestAnimationFrame(sh)},{once:true});return}if(!s0)s0=t;var p=(t-s0)/1400;bar.style.setProperty("--sx",(150-p*200)+"%");if(p<1)requestAnimationFrame(sh);else{bar.style.setProperty("--sx","150%");s0=0;setTimeout(function(){requestAnimationFrame(sh)},5200)}};setTimeout(function(){requestAnimationFrame(sh)},1200)}
+ requestAnimationFrame(function(){setT(target())});
+})();
+</script>
+<script>
+(function(){
+ var KEYS=["kassenapp.draft","kassenapp.history","kassenapp.page"],$=function(i){return document.getElementById(i)};
+ function toast(t){var el=document.querySelector("#p-verlauf .toast");if(!el)return;el.textContent=t;clearTimeout(el._t);el._t=setTimeout(function(){el.textContent=""},3500)}
+ $("bkOut").onclick=async function(){
+  var d={app:"kasse",v:1,saved:new Date().toISOString(),data:{}};KEYS.forEach(function(k){var v=localStorage.getItem(k);if(v!=null)d.data[k]=v});
+  var name="kasse-sicherung-"+new Date().toISOString().slice(0,10)+".json",blob=new Blob([JSON.stringify(d)],{type:"application/json"});
+  try{var f=new File([blob],name,{type:"application/json"});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"Kasse Sicherung"});return}}catch(e){if(e&&e.name==="AbortError")return}
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000)};
+ $("bkIn").onclick=function(){$("bkFile").click()};
+ $("bkFile").onchange=function(){var f=this.files&&this.files[0];this.value="";if(!f)return;var r=new FileReader();
+  r.onload=function(){try{var d=JSON.parse(r.result);if(!d||d.app!=="kasse"||!d.data)throw 0;
+    var n=0;try{n=JSON.parse(d.data["kassenapp.history"]||"[]").length}catch(e){}
+    if(!confirm("Sicherung vom "+new Date(d.saved).toLocaleDateString("de-DE")+" mit "+n+" Abschlüssen laden? Die Daten auf diesem Handy werden ersetzt."))return;
+    KEYS.forEach(function(k){if(d.data[k]!=null)localStorage.setItem(k,d.data[k]);else localStorage.removeItem(k)});location.hash="verlauf";location.reload()}
+   catch(e){toast("Das ist keine Kasse-Sicherung.")}};r.readAsText(f)}
+})();
+</script>
+<style>
+html{touch-action:manipulation}
+/* Leiste unten flacher (laden-v32): alle Apps gleich, Knöpfe 46 statt 52 px hoch, Röstwoche mit Zusatzzeile 50 px */
+.lgx,nav.tabs{padding:3px}
+.lgx button,nav.tabs button{min-height:46px;height:46px;gap:1px;padding:0}
+.lgx button svg,nav.tabs svg{width:21px;height:21px}
+.lgx button:has(> small){min-height:50px;height:50px;gap:0}
+.lgx button:has(> small) svg{width:20px;height:20px}
+.pm-hold{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+</style>
+<script>
+(function(){
+ var HOLD=400,FIRST=170,MIN=60,F=.88,MAXT=6000;
+ function isPM(b){if(!b||b.tagName!=="BUTTON"||b.disabled)return false;var t=(b.textContent||"").trim();return t==="+"||t==="−"||t==="-"||t==="–"}
+ // Schlüssel aus allen Merkmalen (data-…, aria-label, Text): nach dem Neuzeichnen zählt nur GENAU dieser Knopf weiter, nie der einer anderen Zeile (laden-v33)
+ function key(b){var a=[];for(var i=0;i<b.attributes.length;i++){var x=b.attributes[i];if(x.name!=="class"&&x.name!=="style")a.push(x.name+"="+x.value)}return a.sort().join("&")+"|"+b.textContent.trim()}
+ [].forEach.call(document.querySelectorAll("button"),function(b){if(isPM(b))b.classList.add("pm-hold")});
+ new MutationObserver(function(){[].forEach.call(document.querySelectorAll("button:not(.pm-hold)"),function(b){if(isPM(b))b.classList.add("pm-hold")})}).observe(document.body,{childList:true,subtree:true});
+ var pid=null,x=0,y=0,x0=0,y0=0,k="",t=null,iv=FIRST,fired=0,eat=false,t0=0,tg=null;
+ var ENDS=["pointerup","pointercancel","touchend","touchcancel"];
+ function stop(){clearTimeout(t);t=null;pid=null;if(tg){ENDS.forEach(function(n){tg.removeEventListener(n,stop)});tg=null}}
+ function tick(){if(pid==null)return;var el=document.elementFromPoint(x,y),b=el&&el.closest("button");
+  if(!isPM(b)||key(b)!==k||Date.now()-t0>MAXT){stop();return}
+  b.click();fired++;iv=Math.max(MIN,iv*F);t=setTimeout(tick,iv)}
+ document.addEventListener("pointerdown",function(e){var b=e.target.closest&&e.target.closest("button");stop();eat=false;
+  if(!isPM(b)||(e.pointerType==="mouse"&&e.button!==0))return;
+  pid=e.pointerId;x=x0=e.clientX;y=y0=e.clientY;k=key(b);iv=FIRST;fired=0;t0=Date.now();
+  // iPhone: Loslassen geht an den ursprünglich berührten Knopf. Wird er beim Weiterzählen neu gezeichnet, hängt er nicht mehr im Dokument
+  // und das Loslassen kommt oben nie an. Darum direkt am Knopf lauschen, sonst zählte es nach dem Loslassen endlos weiter.
+  tg=e.target;ENDS.forEach(function(n){tg.addEventListener(n,stop)});
+  t=setTimeout(function(){eat=true;tick()},HOLD)},true);
+ document.addEventListener("pointermove",function(e){if(e.pointerId!==pid)return;x=e.clientX;y=e.clientY;if(Math.abs(x-x0)>14||Math.abs(y-y0)>14)stop()},true);
+ function up(e){if(e.pointerId===pid)stop()}
+ document.addEventListener("pointerup",up,true);document.addEventListener("pointercancel",function(e){up(e);eat=false},true);
+ document.addEventListener("touchend",function(e){if(!e.touches||!e.touches.length)stop()},true);document.addEventListener("touchcancel",stop,true);
+ document.addEventListener("visibilitychange",stop);addEventListener("blur",stop);addEventListener("pagehide",stop);addEventListener("scroll",function(){if(pid!=null&&!fired)stop()},{passive:true});
+ // Nach dem Halten nicht noch einen Extra-Schritt durch den normalen Klick beim Loslassen
+ document.addEventListener("click",function(e){if(eat&&e.isTrusted){eat=false;e.preventDefault();e.stopPropagation()}},true);
+ document.addEventListener("contextmenu",function(e){var b=e.target.closest&&e.target.closest("button");if(isPM(b))e.preventDefault()},true);
+})();
+</script>
+<script>if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
+</body></html>
