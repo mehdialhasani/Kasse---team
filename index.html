@@ -202,6 +202,7 @@ button.danger{color:var(--bad)}
     </div>
   </div>
   <div class="banner" id="exBanner" hidden><span>Das sind <b>Beispielzahlen</b>, damit du siehst, wie es aussieht.</span><button class="primary small" id="exClear">Leeren und loslegen</button></div>
+  <div class="banner" id="dayBanner" hidden><span id="dayTxt"></span><button class="primary small" id="dayToday">Auf heute setzen</button></div>
   <div class="editing" id="editing" hidden></div>
 
   <div class="sum">
@@ -555,6 +556,8 @@ $("copyA").onclick=()=>copy(LA,"fbA");$("copyT").onclick=()=>copy(LT,"fbT");
 
 document.querySelectorAll(".saveBtn").forEach(b=>b.onclick=()=>{
   if(S.example){toast("Das sind Beispielzahlen. Erst oben „Leeren und loslegen“ tippen.");return}
+  // Schutz: nicht aus Versehen einen gespeicherten früheren Tag überschreiben (z. B. Datum vom letzten Mal stehen geblieben)
+  const ex=hist.find(h=>h.date===S.date);if(ex&&ex.id!==editingId&&S.date!==today()&&armSave!==S.date){armSave=S.date;clearTimeout(armSave_t);armSave_t=setTimeout(()=>armSave=null,5000);toast("Für "+shortDate(S.date)+" ist schon ein Abschluss gespeichert. Datum prüfen! Nochmal tippen ersetzt ihn.");return}armSave=null;
   const moved=editingId&&hist.find(h=>h.id===editingId&&h.date!==S.date);if(moved)hist=hist.filter(h=>h!==moved);
   const r=calc(S),snap=JSON.parse(JSON.stringify(S));snap.example=false;
   const entry={id:Date.now(),date:S.date,cash:r.cash,diff:r.diff,take:r.take,tip:r.tipTotal,tipCard:r.tipCard,tipBar:r.tipBar,state:snap};
@@ -562,7 +565,7 @@ document.querySelectorAll(".saveBtn").forEach(b=>b.onclick=()=>{
   hist.sort((a,b)=>b.date.localeCompare(a.date));store.set("kassenapp.history",hist);editingId=entry.id;renderQuick();update();
   toast(moved?"Abschluss auf "+shortDate(S.date)+" verschoben.":i>=0?"Abschluss für diesen Tag aktualisiert.":"Abschluss gespeichert.")});
 
-let armNew=false;
+let armNew=false,armSave=null,armSave_t=0;
 $("newDay").onclick=()=>{const b=$("newDay");if(!armNew){armNew=true;const d=dirty();b.textContent=d?"Nicht gespeichert! Leeren?":"Wirklich leeren?";if(d)toast("Dieser Tag ist noch nicht gespeichert. Nochmal tippen leert ihn trotzdem.");setTimeout(()=>{armNew=false;b.textContent="Neuer Tag"},d?4500:3000);return}
   armNew=false;b.textContent="Neuer Tag";const base=S.keep;S=blank();if(base)S.keep=base;editingId=null;fillForm();update();window.scrollTo(0,0);toast("Neuer Tag, alle Felder leer.")};
 $("exClear").onclick=()=>{S=blank();editingId=null;fillForm();update()};
@@ -608,6 +611,15 @@ $("p-verlauf").addEventListener("click",e=>{
     else{delArm=id;setTimeout(()=>{if(delArm===id){delArm=null;renderHist()}},3000)}renderHist()}});
 
 fillForm();update();
+// Datum vom letzten Mal stehen geblieben? Gespeicherter oder leerer Tag -> automatisch neuer Tag mit heutigem Datum; ungespeicherte Eingaben -> Hinweis.
+function checkDay(){const t=today();if(S.example||editingId||S.date===t){$("dayBanner").hidden=true;return}
+  if(!dirty()){const base=S.keep;S=blank();if(base)S.keep=base;fillForm();update();$("dayBanner").hidden=true;toast("Neuer Tag: "+longDate(t)+".");return}
+  $("dayTxt").innerHTML="Diese Eingaben sind vom <b>"+esc(shortDate(S.date))+"</b> und noch nicht gespeichert.";$("dayBanner").hidden=false}
+$("dayToday").onclick=()=>{S.date=today();fillForm();update();checkDay();toast("Datum auf heute gesetzt.")};
+$("date").addEventListener("input",()=>{$("dayBanner").hidden=true});
+$("newDay").addEventListener("click",()=>{if(!armNew)$("dayBanner").hidden=true});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkDay()});
+checkDay();
 const h0=(location.hash||"").slice(1);show(PAGES.includes(h0)?h0:store.get("kassenapp.page","abrechnung"),true);
 })();
 </script>
